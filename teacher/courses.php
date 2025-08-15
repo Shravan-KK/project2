@@ -252,9 +252,9 @@ $courses = $stmt->get_result();
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-2">
-                                        <a href="course_content.php?course_id=<?php echo $course_item['id']; ?>" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                                        <a href="course_view.php?id=<?php echo $course_item['id']; ?>" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                                             <i class="fas fa-eye mr-2"></i>
-                                            Content
+                                            View
                                         </a>
                                         <a href="?action=edit&id=<?php echo $course_item['id']; ?>" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                                             <i class="fas fa-edit mr-2"></i>
@@ -291,5 +291,6 @@ $courses = $stmt->get_result();
             }
         });
     </script>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

@@ -68,7 +68,7 @@ $enrolled_courses = $stmt->get_result();
                                                     </span>
                                                 </div>
                                             </div>
-                                            <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'], 0, 100)) . '...'; ?></p>
+                                            <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'] ?? '', 0, 100)) . '...'; ?></p>
                                             <div class="mt-2 flex items-center text-sm text-gray-500">
                                                 <span><i class="fas fa-user mr-1"></i> <?php echo htmlspecialchars($course['teacher_name'] ?? 'Unknown'); ?></span>
                                                 <span class="ml-4"><i class="fas fa-book mr-1"></i> <?php echo $course['completed_lessons']; ?>/<?php echo $course['total_lessons']; ?> lessons completed</span>
@@ -104,5 +104,6 @@ $enrolled_courses = $stmt->get_result();
             <?php endif; ?>
         </div>
     </div>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

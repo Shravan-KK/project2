@@ -63,6 +63,21 @@ function formatDateTime($datetime) {
     return date('F j, Y g:i A', strtotime($datetime));
 }
 
+function formatDuration($minutes) {
+    if (!$minutes || $minutes <= 0) {
+        return 'N/A';
+    }
+    
+    $hours = floor($minutes / 60);
+    $mins = $minutes % 60;
+    
+    if ($hours > 0) {
+        return $hours . 'h ' . $mins . 'm';
+    } else {
+        return $mins . 'm';
+    }
+}
+
 function getCourseById($conn, $course_id) {
     $sql = "SELECT c.*, u.name as teacher_name FROM courses c 
             LEFT JOIN users u ON c.teacher_id = u.id 

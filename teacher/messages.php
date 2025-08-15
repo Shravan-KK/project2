@@ -331,5 +331,6 @@ $admins = $stmt->get_result();
             </div>
         <?php endif; ?>
     </div>
-</body>
-</html> 
+
+
+<?php require_once '../includes/footer.php'; ?>

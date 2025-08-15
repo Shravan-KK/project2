@@ -160,5 +160,6 @@ if ($message_id && $action == 'view') {
             </div>
         <?php endif; ?>
     </div>
-</body>
-</html> 
+
+
+<?php require_once '../includes/footer.php'; ?>

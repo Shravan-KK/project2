@@ -6,329 +6,346 @@ require_once '../includes/header.php';
 
 requireAdmin();
 
-$action = $_GET['action'] ?? 'list';
-$course_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-$error = '';
-$success = '';
+$page_title = 'Courses Management - Admin';
 
-// Handle course form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['add_course']) || isset($_POST['edit_course'])) {
-        $title = sanitizeInput($_POST['title']);
-        $description = sanitizeInput($_POST['description']);
-        $category = sanitizeInput($_POST['category']);
+// Handle form submissions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'create_course':
+                $title = trim($_POST['title']);
+                $description = trim($_POST['description']);
+                $teacher_id = (int)$_POST['teacher_id'];
+                $duration = trim($_POST['duration']);
         $price = (float)$_POST['price'];
-        $duration = sanitizeInput($_POST['duration']);
-        $level = sanitizeInput($_POST['level']);
-        $status = sanitizeInput($_POST['status']);
-        $intro_video_url = sanitizeInput($_POST['intro_video_url']);
-        $thumbnail_url = sanitizeInput($_POST['thumbnail_url']);
-        $max_students = (int)$_POST['max_students'];
-        $visibility = sanitizeInput($_POST['visibility']);
-        $password = sanitizeInput($_POST['password']);
-        $activation_date = !empty($_POST['activation_date']) ? $_POST['activation_date'] : null;
-        
-        if (empty($title) || empty($description) || empty($category)) {
-            $error = 'Please fill in all required fields';
-        } else {
-            if (isset($_POST['add_course'])) {
-                // Add new course
-                $sql = "INSERT INTO courses (title, description, category, price, duration, level, status, intro_video_url, thumbnail_url, max_students, visibility, password, activation_date, teacher_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $status = $_POST['status'];
+                
+                $sql = "INSERT INTO courses (title, description, teacher_id, duration, price, status) VALUES (?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("sssdsssssisss", $title, $description, $category, $price, $duration, $level, $status, $intro_video_url, $thumbnail_url, $max_students, $visibility, $password, $activation_date, $_SESSION['user_id']);
+                $stmt->bind_param("ssisds", $title, $description, $teacher_id, $duration, $price, $status);
                 
                 if ($stmt->execute()) {
-                    $success = 'Course added successfully';
-                    $action = 'list';
+                    $success_message = "Course created successfully!";
                 } else {
-                    $error = 'Failed to add course';
+                    $error_message = "Error creating course: " . $stmt->error;
                 }
-            } else {
-                // Edit existing course
-                $sql = "UPDATE courses SET title = ?, description = ?, category = ?, price = ?, duration = ?, level = ?, status = ?, intro_video_url = ?, thumbnail_url = ?, max_students = ?, visibility = ?, password = ?, activation_date = ? WHERE id = ?";
+                break;
+                
+            case 'update_course':
+                $course_id = (int)$_POST['course_id'];
+                $title = trim($_POST['title']);
+                $description = trim($_POST['description']);
+                $teacher_id = (int)$_POST['teacher_id'];
+                $duration = trim($_POST['duration']);
+                $price = (float)$_POST['price'];
+                $status = $_POST['status'];
+                
+                $sql = "UPDATE courses SET title = ?, description = ?, teacher_id = ?, duration = ?, price = ?, status = ? WHERE id = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("sssdsssssisssi", $title, $description, $category, $price, $duration, $level, $status, $intro_video_url, $thumbnail_url, $max_students, $visibility, $password, $activation_date, $course_id);
+                $stmt->bind_param("ssisdsi", $title, $description, $teacher_id, $duration, $price, $status, $course_id);
                 
                 if ($stmt->execute()) {
-                    $success = 'Course updated successfully';
-                    $action = 'list';
+                    $success_message = "Course updated successfully!";
                 } else {
-                    $error = 'Failed to update course';
+                    $error_message = "Error updating course: " . $stmt->error;
                 }
-            }
+                break;
         }
     }
 }
 
-// Get course for editing
-$edit_course = null;
-if ($action == 'edit' && $course_id) {
-    $sql = "SELECT * FROM courses WHERE id = ?";
+// Handle delete actions
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $course_id = (int)$_GET['delete'];
+    
+    // Check if course has enrollments
+    $check_sql = "SELECT COUNT(*) as count FROM enrollments WHERE course_id = ?";
+    $check_stmt = $conn->prepare($check_sql);
+    $check_stmt->bind_param("i", $course_id);
+    $check_stmt->execute();
+    $result = $check_stmt->get_result()->fetch_assoc();
+    
+    if ($result['count'] > 0) {
+        $error_message = "Cannot delete course with active enrollments. Please remove students first.";
+    } else {
+        $sql = "DELETE FROM courses WHERE id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $course_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $edit_course = $result->fetch_assoc();
-    
-    if (!$edit_course) {
-        $error = 'Course not found';
-        $action = 'list';
+        
+        if ($stmt->execute()) {
+            $success_message = "Course deleted successfully!";
+        } else {
+            $error_message = "Error deleting course: " . $stmt->error;
+        }
     }
 }
 
-// Get all courses with teacher names
+// Get all courses with statistics
 $sql = "SELECT c.*, u.name as teacher_name, 
-        (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id) as enrollment_count
+        COUNT(DISTINCT e.student_id) as enrolled_students,
+        COUNT(DISTINCT l.id) as total_lessons,
+        COUNT(DISTINCT a.id) as total_assignments,
+        AVG(e.progress) as avg_progress
         FROM courses c 
         LEFT JOIN users u ON c.teacher_id = u.id 
+        LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+        LEFT JOIN lessons l ON c.id = l.course_id
+        LEFT JOIN assignments a ON c.id = a.course_id
+        GROUP BY c.id 
         ORDER BY c.created_at DESC";
 $courses = $conn->query($sql);
+
+// Get teachers for course creation
+$teachers_sql = "SELECT id, name, email FROM users WHERE user_type = 'teacher' ORDER BY name";
+$teachers = $conn->query($teachers_sql);
+
+// Get course details for editing
+$edit_course = null;
+if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
+    $course_id = (int)$_GET['edit'];
+    $edit_sql = "SELECT * FROM courses WHERE id = ?";
+    $edit_stmt = $conn->prepare($edit_sql);
+    $edit_stmt->bind_param("i", $course_id);
+    $edit_stmt->execute();
+    $edit_course = $edit_stmt->get_result()->fetch_assoc();
+}
+
+// Get course statistics
+$stats_sql = "SELECT 
+    COUNT(*) as total_courses,
+    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_courses,
+    COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive_courses,
+    AVG(price) as avg_price
+    FROM courses";
+$stats = $conn->query($stats_sql)->fetch_assoc();
 ?>
 
-<?php $page_title = 'Course Management - Admin'; ?>
-
-    <!-- Main Content -->
     <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <?php if ($error): ?>
-            <div class="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                <?php echo htmlspecialchars($error); ?>
+    <div class="px-4 py-6 sm:px-0">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Courses Management</h1>
+                <p class="mt-2 text-gray-600">Manage all courses in the system</p>
             </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-                <?php echo htmlspecialchars($success); ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Page Header -->
-        <div class="px-4 py-6 sm:px-0">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold text-gray-900">
-                        <?php echo $action == 'add' ? 'Add New Course' : ($action == 'edit' ? 'Edit Course' : 'Course Management'); ?>
-                    </h1>
-                    <p class="mt-2 text-gray-600">Manage all courses in the system</p>
-                </div>
-                <?php if ($action == 'list'): ?>
-                    <a href="?action=add" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                        <i class="fas fa-plus mr-2"></i>
-                        Add Course
-                    </a>
-                <?php endif; ?>
-            </div>
+            <button onclick="document.getElementById('createCourseModal').classList.remove('hidden')" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                <i class="fas fa-plus mr-2"></i>Create New Course
+            </button>
         </div>
 
-        <?php if ($action == 'add' || $action == 'edit'): ?>
-            <!-- Course Form -->
-            <div class="bg-white shadow rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">
-                        <?php echo $action == 'add' ? 'Create New Course' : 'Edit Course'; ?>
-                    </h3>
-                </div>
-                <form method="POST" class="p-6 space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="title" class="block text-sm font-medium text-gray-700">Course Title *</label>
-                            <input type="text" name="title" id="title" required 
-                                   value="<?php echo htmlspecialchars($edit_course['title'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="category" class="block text-sm font-medium text-gray-700">Category *</label>
-                            <select name="category" id="category" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Select Category</option>
-                                <option value="Programming" <?php echo ($edit_course['category'] ?? '') == 'Programming' ? 'selected' : ''; ?>>Programming</option>
-                                <option value="Design" <?php echo ($edit_course['category'] ?? '') == 'Design' ? 'selected' : ''; ?>>Design</option>
-                                <option value="Business" <?php echo ($edit_course['category'] ?? '') == 'Business' ? 'selected' : ''; ?>>Business</option>
-                                <option value="Marketing" <?php echo ($edit_course['category'] ?? '') == 'Marketing' ? 'selected' : ''; ?>>Marketing</option>
-                                <option value="Technology" <?php echo ($edit_course['category'] ?? '') == 'Technology' ? 'selected' : ''; ?>>Technology</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label for="price" class="block text-sm font-medium text-gray-700">Price (₹)</label>
-                            <input type="number" name="price" id="price" step="0.01" min="0"
-                                   value="<?php echo htmlspecialchars($edit_course['price'] ?? '0'); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="duration" class="block text-sm font-medium text-gray-700">Duration</label>
-                            <input type="text" name="duration" id="duration" placeholder="e.g., 8 weeks, 40 hours"
-                                   value="<?php echo htmlspecialchars($edit_course['duration'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="level" class="block text-sm font-medium text-gray-700">Level</label>
-                            <select name="level" id="level" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Select Level</option>
-                                <option value="Beginner" <?php echo ($edit_course['level'] ?? '') == 'Beginner' ? 'selected' : ''; ?>>Beginner</option>
-                                <option value="Intermediate" <?php echo ($edit_course['level'] ?? '') == 'Intermediate' ? 'selected' : ''; ?>>Intermediate</option>
-                                <option value="Advanced" <?php echo ($edit_course['level'] ?? '') == 'Advanced' ? 'selected' : ''; ?>>Advanced</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                            <select name="status" id="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="active" <?php echo ($edit_course['status'] ?? '') == 'active' ? 'selected' : ''; ?>>Active</option>
-                                <option value="inactive" <?php echo ($edit_course['status'] ?? '') == 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-                                <option value="draft" <?php echo ($edit_course['status'] ?? '') == 'draft' ? 'selected' : ''; ?>>Draft</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label for="intro_video_url" class="block text-sm font-medium text-gray-700">Intro Video URL</label>
-                            <input type="url" name="intro_video_url" id="intro_video_url" placeholder="https://youtube.com/watch?v=..."
-                                   value="<?php echo htmlspecialchars($edit_course['intro_video_url'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="thumbnail_url" class="block text-sm font-medium text-gray-700">Thumbnail URL</label>
-                            <input type="url" name="thumbnail_url" id="thumbnail_url" placeholder="https://example.com/image.jpg"
-                                   value="<?php echo htmlspecialchars($edit_course['thumbnail_url'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="max_students" class="block text-sm font-medium text-gray-700">Max Students</label>
-                            <input type="number" name="max_students" id="max_students" min="1" placeholder="0 for unlimited"
-                                   value="<?php echo htmlspecialchars($edit_course['max_students'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="visibility" class="block text-sm font-medium text-gray-700">Visibility</label>
-                            <select name="visibility" id="visibility" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="public" <?php echo ($edit_course['visibility'] ?? '') == 'public' ? 'selected' : ''; ?>>Public</option>
-                                <option value="private" <?php echo ($edit_course['visibility'] ?? '') == 'private' ? 'selected' : ''; ?>>Private</option>
-                                <option value="password" <?php echo ($edit_course['visibility'] ?? '') == 'password' ? 'selected' : ''; ?>>Password Protected</option>
-                            </select>
-                        </div>
-                        
-                        <div id="password_field" style="display: none;">
-                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                            <input type="text" name="password" id="password" placeholder="Enter course password"
-                                   value="<?php echo htmlspecialchars($edit_course['password'] ?? ''); ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                        
-                        <div>
-                            <label for="activation_date" class="block text-sm font-medium text-gray-700">Activation Date</label>
-                            <input type="datetime-local" name="activation_date" id="activation_date"
-                                   value="<?php echo $edit_course['activation_date'] ? date('Y-m-d\TH:i', strtotime($edit_course['activation_date'])) : ''; ?>"
-                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label for="description" class="block text-sm font-medium text-gray-700">Description *</label>
-                        <textarea name="description" id="description" rows="4" required
-                                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"><?php echo htmlspecialchars($edit_course['description'] ?? ''); ?></textarea>
-                    </div>
-                    
-                    <div class="flex justify-end space-x-3">
-                        <a href="?action=list" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                            Cancel
-                        </a>
-                        <button type="submit" name="<?php echo $action == 'add' ? 'add_course' : 'edit_course'; ?>" 
-                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                            <?php echo $action == 'add' ? 'Add Course' : 'Update Course'; ?>
-                        </button>
-                    </div>
-                </form>
+        <?php if (isset($success_message)): ?>
+            <div class="mt-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                <?php echo $success_message; ?>
             </div>
-        <?php else: ?>
-            <!-- Courses List -->
-            <div class="bg-white shadow overflow-hidden sm:rounded-md">
-                <div class="px-4 py-5 sm:px-6">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">
-                        All Courses (<?php echo $courses->num_rows; ?> total)
-                    </h3>
+        <?php endif; ?>
+
+        <?php if (isset($error_message)): ?>
+            <div class="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                <?php echo $error_message; ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- Course Statistics -->
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-book text-blue-600 text-2xl"></i>
+                </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Total Courses</dt>
+                                <dd class="text-lg font-medium text-gray-900"><?php echo $stats['total_courses']; ?></dd>
+                            </dl>
+            </div>
+        </div>
+                </div>
+            </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-play-circle text-green-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Active Courses</dt>
+                                <dd class="text-lg font-medium text-gray-900"><?php echo $stats['active_courses']; ?></dd>
+                            </dl>
+                        </div>
+                        </div>
+                        </div>
+                        </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-pause-circle text-yellow-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Inactive Courses</dt>
+                                <dd class="text-lg font-medium text-gray-900"><?php echo $stats['inactive_courses']; ?></dd>
+                            </dl>
+                        </div>
+                        </div>
+                        </div>
+                        </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-dollar-sign text-purple-600 text-2xl"></i>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Avg Price</dt>
+                                <dd class="text-lg font-medium text-gray-900">$<?php echo number_format($stats['avg_price'] ?: 0, 2); ?></dd>
+                            </dl>
+                        </div>
+                    </div>
+                    </div>
+            </div>
                 </div>
                 
-                <?php if ($courses->num_rows > 0): ?>
+        <!-- Courses List -->
+        <div class="mt-8 bg-white shadow overflow-hidden sm:rounded-md">
+            <div class="px-4 py-5 sm:px-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">All Courses</h3>
+            </div>
                     <ul class="divide-y divide-gray-200">
+                <?php if ($courses && $courses->num_rows > 0): ?>
                         <?php while ($course = $courses->fetch_assoc()): ?>
-                            <li>
-                                <div class="px-4 py-4 sm:px-6">
+                        <li class="px-4 py-4">
                                     <div class="flex items-center justify-between">
-                                        <div class="flex items-center">
-                                            <div class="flex-shrink-0">
-                                                <div class="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                                                    <i class="fas fa-graduation-cap text-indigo-600"></i>
-                                                </div>
-                                            </div>
-                                            <div class="ml-4">
+                                <div class="flex-1">
                                                 <div class="flex items-center">
                                                     <h4 class="text-lg font-medium text-gray-900"><?php echo htmlspecialchars($course['title']); ?></h4>
-                                                    <div class="ml-2 flex items-center space-x-2">
-                                                        <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $course['status'] == 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'; ?>">
+                                        <span class="ml-2 px-2 py-1 text-xs font-medium rounded-full 
+                                            <?php echo $course['status'] === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'; ?>">
                                                             <?php echo ucfirst($course['status']); ?>
                                                         </span>
-                                                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                                                            <?php echo htmlspecialchars($course['category']); ?>
-                                                        </span>
                                                     </div>
+                                    <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'], 0, 150)) . '...'; ?></p>
+                                    <div class="mt-2 flex items-center text-sm text-gray-500">
+                                        <span><i class="fas fa-chalkboard-teacher mr-1"></i> <?php echo htmlspecialchars($course['teacher_name'] ?: 'Unassigned'); ?></span>
+                                        <span class="ml-4"><i class="fas fa-clock mr-1"></i> <?php echo htmlspecialchars($course['duration']); ?></span>
+                                        <span class="ml-4"><i class="fas fa-dollar-sign mr-1"></i> $<?php echo number_format($course['price'], 2); ?></span>
+                                        <span class="ml-4"><i class="fas fa-users mr-1"></i> <?php echo $course['enrolled_students'] ?: 0; ?> students</span>
+                                        <span class="ml-4"><i class="fas fa-file-alt mr-1"></i> <?php echo $course['total_lessons'] ?: 0; ?> lessons</span>
+                                        <span class="ml-4"><i class="fas fa-tasks mr-1"></i> <?php echo $course['total_assignments'] ?: 0; ?> assignments</span>
                                                 </div>
-                                                <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'], 0, 100)) . '...'; ?></p>
-                                                <div class="mt-2 flex items-center text-sm text-gray-500">
-                                                    <span><i class="fas fa-user mr-1"></i> <?php echo htmlspecialchars($course['teacher_name'] ?? 'Unknown'); ?></span>
-                                                    <span class="ml-4"><i class="fas fa-users mr-1"></i> <?php echo $course['enrollment_count']; ?> students</span>
-                                                    <span class="ml-4"><i class="fas fa-rupee-sign mr-1"></i> ₹<?php echo number_format($course['price'], 2); ?></span>
-                                                    <span class="ml-4"><i class="fas fa-calendar mr-1"></i> <?php echo formatDate($course['created_at']); ?></span>
+                                    
+                                    <!-- Progress Bar -->
+                                    <?php if ($course['enrolled_students'] > 0): ?>
+                                        <div class="mt-3">
+                                            <div class="flex items-center justify-between text-sm">
+                                                <span class="text-gray-600">Average Student Progress</span>
+                                                <span class="text-gray-900 font-medium"><?php echo round($course['avg_progress'] ?: 0, 1); ?>%</span>
                                                 </div>
+                                            <div class="mt-1 bg-gray-200 rounded-full h-2">
+                                                <div class="bg-blue-600 h-2 rounded-full" style="width: <?php echo $course['avg_progress'] ?: 0; ?>%"></div>
                                             </div>
                                         </div>
-                                        <div class="flex items-center space-x-2">
-                                            <a href="course_content.php?course_id=<?php echo $course['id']; ?>" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
-                                                <i class="fas fa-eye mr-2"></i>
-                                                View Lessons
-                                            </a>
-                                            <a href="?action=edit&id=<?php echo $course['id']; ?>" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                                                <i class="fas fa-edit mr-2"></i>
-                                                Edit
-                                            </a>
+                                    <?php endif; ?>
                                         </div>
+                                        <div class="flex items-center space-x-2">
+                                    <a href="course_details.php?id=<?php echo $course['id']; ?>" class="text-blue-600 hover:text-blue-900">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="?edit=<?php echo $course['id']; ?>" class="text-indigo-600 hover:text-indigo-900">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="course_sections.php?course_id=<?php echo $course['id']; ?>" class="text-green-600 hover:text-green-900" title="Manage Sections & Lessons">
+                                        <i class="fas fa-folder-open"></i>
+                                    </a>
+                                    <a href="course_enrollments.php?course_id=<?php echo $course['id']; ?>" class="text-purple-600 hover:text-purple-900">
+                                        <i class="fas fa-users"></i>
+                                    </a>
+                                    <a href="?delete=<?php echo $course['id']; ?>" onclick="return confirm('Are you sure you want to delete this course?')" class="text-red-600 hover:text-red-900">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
                                     </div>
                                 </div>
                             </li>
                         <?php endwhile; ?>
-                    </ul>
                 <?php else: ?>
-                    <div class="px-4 py-8 text-center">
-                        <i class="fas fa-graduation-cap text-gray-400 text-4xl mb-4"></i>
+                    <li class="px-4 py-8 text-center">
+                        <i class="fas fa-book text-gray-400 text-4xl mb-4"></i>
                         <p class="text-gray-500">No courses found.</p>
                         <p class="text-sm text-gray-400 mt-2">Create your first course to get started.</p>
-                    </div>
+                    </li>
                 <?php endif; ?>
+            </ul>
             </div>
-        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Create/Edit Course Modal -->
+<div id="createCourseModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full <?php echo $edit_course ? '' : 'hidden'; ?>">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">
+                <?php echo $edit_course ? 'Edit Course' : 'Create New Course'; ?>
+            </h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="<?php echo $edit_course ? 'update_course' : 'create_course'; ?>">
+                <?php if ($edit_course): ?>
+                    <input type="hidden" name="course_id" value="<?php echo $edit_course['id']; ?>">
+                <?php endif; ?>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Course Title</label>
+                    <input type="text" name="title" value="<?php echo $edit_course ? htmlspecialchars($edit_course['title']) : ''; ?>" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea name="description" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"><?php echo $edit_course ? htmlspecialchars($edit_course['description']) : ''; ?></textarea>
     </div>
 
-    <script>
-        // Show/hide password field based on visibility selection
-        document.getElementById('visibility').addEventListener('change', function() {
-            const passwordField = document.getElementById('password_field');
-            if (this.value === 'password') {
-                passwordField.style.display = 'block';
-            } else {
-                passwordField.style.display = 'none';
-            }
-        });
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Teacher</label>
+                    <select name="teacher_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Select a teacher</option>
+                        <?php while ($teacher = $teachers->fetch_assoc()): ?>
+                            <option value="<?php echo $teacher['id']; ?>" <?php echo ($edit_course && $edit_course['teacher_id'] == $teacher['id']) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($teacher['name']); ?> (<?php echo htmlspecialchars($teacher['email']); ?>)
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Duration</label>
+                        <input type="text" name="duration" value="<?php echo $edit_course ? htmlspecialchars($edit_course['duration']) : ''; ?>" placeholder="e.g., 8 weeks" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Price ($)</label>
+                        <input type="number" name="price" value="<?php echo $edit_course ? $edit_course['price'] : ''; ?>" step="0.01" min="0" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Status</label>
+                    <select name="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="active" <?php echo ($edit_course && $edit_course['status'] === 'active') ? 'selected' : ''; ?>>Active</option>
+                        <option value="inactive" <?php echo ($edit_course && $edit_course['status'] === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="document.getElementById('createCourseModal').classList.add('hidden')" class="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                        <?php echo $edit_course ? 'Update Course' : 'Create Course'; ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const visibilitySelect = document.getElementById('visibility');
-            if (visibilitySelect.value === 'password') {
-                document.getElementById('password_field').style.display = 'block';
-            }
-        });
-    </script>
-</body>
-</html>
+<?php require_once '../includes/footer.php'; ?>

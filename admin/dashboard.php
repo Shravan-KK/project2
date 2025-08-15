@@ -109,19 +109,19 @@ $page_title = 'Admin Dashboard';
                     <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Enrollments</h3>
                     <div class="space-y-4">
                         <?php if ($recent_enrollments->num_rows > 0): ?>
-                                                    <?php while ($enrollment = $recent_enrollments->fetch_assoc()): ?>
-                            <div class="flex items-center justify-between">
+                            <?php while ($enrollment = $recent_enrollments->fetch_assoc()): ?>
+                                <div class="flex items-center justify-between">
                                 <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($enrollment['student_name']); ?></p>
+                                        <p class="text-sm font-medium text-gray-900"><?php echo htmlspecialchars($enrollment['student_name']); ?></p>
                                     <a href="course_content.php?course_id=<?php echo $enrollment['course_id']; ?>" class="block hover:bg-gray-50 rounded-md p-1 -m-1 transition-colors duration-200">
                                         <p class="text-sm text-gray-500 hover:text-indigo-600"><?php echo htmlspecialchars($enrollment['course_title']); ?></p>
                                     </a>
-                                </div>
+                                    </div>
                                 <div class="text-sm text-gray-500 ml-4">
-                                    <?php echo formatDate($enrollment['enrollment_date']); ?>
+                                        <?php echo formatDate($enrollment['enrollment_date']); ?>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endwhile; ?>
+                            <?php endwhile; ?>
                         <?php else: ?>
                             <p class="text-gray-500 text-sm">No recent enrollments</p>
                         <?php endif; ?>
@@ -138,19 +138,19 @@ $page_title = 'Admin Dashboard';
                     <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Courses</h3>
                     <div class="space-y-4">
                         <?php if ($recent_courses->num_rows > 0): ?>
-                                                    <?php while ($course = $recent_courses->fetch_assoc()): ?>
-                            <div class="flex items-center justify-between">
+                            <?php while ($course = $recent_courses->fetch_assoc()): ?>
+                                <div class="flex items-center justify-between">
                                 <div class="flex-1">
-                                    <a href="course_content.php?course_id=<?php echo $course['id']; ?>" class="block hover:bg-gray-50 rounded-md p-2 -m-2 transition-colors duration-200">
+                                    <a href="lessons.php?course_id=<?php echo $course['id']; ?>" class="block hover:bg-gray-50 rounded-md p-2 -m-2 transition-colors duration-200">
                                         <p class="text-sm font-medium text-gray-900 hover:text-indigo-600"><?php echo htmlspecialchars($course['title']); ?></p>
                                         <p class="text-sm text-gray-500">by <?php echo htmlspecialchars($course['teacher_name'] ?? 'Unassigned'); ?></p>
                                     </a>
-                                </div>
+                                    </div>
                                 <div class="text-sm text-gray-500 ml-4">
-                                    <?php echo formatDate($course['created_at']); ?>
+                                        <?php echo formatDate($course['created_at']); ?>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endwhile; ?>
+                            <?php endwhile; ?>
                         <?php else: ?>
                             <p class="text-gray-500 text-sm">No recent courses</p>
                         <?php endif; ?>
@@ -166,7 +166,7 @@ $page_title = 'Admin Dashboard';
         <div class="mt-8 bg-white shadow rounded-lg">
             <div class="px-4 py-5 sm:p-6">
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Quick Actions</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <a href="users.php?action=add" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         <i class="fas fa-user-plus mr-2"></i>
                         Add New User
@@ -174,6 +174,10 @@ $page_title = 'Admin Dashboard';
                     <a href="courses.php?action=add" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
                         <i class="fas fa-plus mr-2"></i>
                         Create Course
+                    </a>
+                    <a href="lessons.php" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                        <i class="fas fa-book mr-2"></i>
+                        Manage Lessons
                     </a>
                     <a href="reports.php" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                         <i class="fas fa-chart-bar mr-2"></i>
@@ -183,5 +187,5 @@ $page_title = 'Admin Dashboard';
             </div>
         </div>
     </div>
-</body>
-</html> 
+
+<?php require_once '../includes/footer.php'; ?> 

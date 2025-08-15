@@ -1,4 +1,9 @@
 <?php
+error_reporting(E_ALL);      // Report all types of errors
+ini_set('display_errors', 1); // Show errors in the browser
+ini_set('display_startup_errors', 1); // Show errors that occur during PHP startup
+?>
+<?php
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
@@ -39,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         if ($result->num_rows == 1) {
             $user = $result->fetch_assoc();
-            if (password_verify($password, $user['password'])) {
+            if (md5($password) === $user['password']) {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['user_type'] = $user['user_type'];
                 $_SESSION['name'] = $user['name'];

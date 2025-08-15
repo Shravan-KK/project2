@@ -557,5 +557,6 @@ if ($course_id) {
             margin: 1em 0;
         }
     </style>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

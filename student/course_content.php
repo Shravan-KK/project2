@@ -336,5 +336,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
             margin: 1em 0;
         }
     </style>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

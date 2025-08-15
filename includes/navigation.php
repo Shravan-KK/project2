@@ -9,6 +9,7 @@ function getNavigation($user_type, $current_page = '') {
                 'dashboard' => ['url' => 'dashboard.php', 'icon' => 'fas fa-tachometer-alt', 'text' => 'Dashboard'],
                 'users' => ['url' => 'users.php', 'icon' => 'fas fa-users', 'text' => 'Users'],
                 'courses' => ['url' => 'courses.php', 'icon' => 'fas fa-book', 'text' => 'Courses'],
+                'batches' => ['url' => 'batches.php', 'icon' => 'fas fa-layer-group', 'text' => 'Batches'],
                 'enrollments' => ['url' => 'enrollments.php', 'icon' => 'fas fa-user-graduate', 'text' => 'Enrollments'],
                 'payments' => ['url' => 'payments.php', 'icon' => 'fas fa-credit-card', 'text' => 'Payments'],
                 'reports' => ['url' => 'reports.php', 'icon' => 'fas fa-chart-bar', 'text' => 'Reports'],
@@ -25,6 +26,7 @@ function getNavigation($user_type, $current_page = '') {
             $nav_items = [
                 'dashboard' => ['url' => 'dashboard.php', 'icon' => 'fas fa-tachometer-alt', 'text' => 'Dashboard'],
                 'courses' => ['url' => 'courses.php', 'icon' => 'fas fa-book', 'text' => 'My Courses'],
+                'batches' => ['url' => 'batches.php', 'icon' => 'fas fa-layer-group', 'text' => 'My Batches'],
                 'students' => ['url' => 'students.php', 'icon' => 'fas fa-user-graduate', 'text' => 'Students'],
                 'assignments' => ['url' => 'assignments.php', 'icon' => 'fas fa-file-alt', 'text' => 'Assignments'],
                 'grades' => ['url' => 'grades.php', 'icon' => 'fas fa-graduation-cap', 'text' => 'Grades'],
@@ -40,7 +42,10 @@ function getNavigation($user_type, $current_page = '') {
         case 'student':
             $nav_items = [
                 'dashboard' => ['url' => 'dashboard.php', 'icon' => 'fas fa-tachometer-alt', 'text' => 'Dashboard'],
+                'browse_courses' => ['url' => '../courses.php', 'icon' => 'fas fa-search', 'text' => 'Browse Courses'],
                 'courses' => ['url' => 'courses.php', 'icon' => 'fas fa-book', 'text' => 'My Courses'],
+                'batches' => ['url' => 'batches.php', 'icon' => 'fas fa-layer-group', 'text' => 'My Batches'],
+                'classes' => ['url' => 'classes.php', 'icon' => 'fas fa-chalkboard-teacher', 'text' => 'My Classes'],
                 'announcements' => ['url' => 'announcements.php', 'icon' => 'fas fa-bullhorn', 'text' => 'Announcements'],
                 'assignments' => ['url' => 'assignments.php', 'icon' => 'fas fa-file-alt', 'text' => 'Assignments'],
                 'grades' => ['url' => 'grades.php', 'icon' => 'fas fa-graduation-cap', 'text' => 'Grades'],
@@ -51,6 +56,19 @@ function getNavigation($user_type, $current_page = '') {
             $hover_color = 'hover:text-white';
             $active_color = 'text-white';
             $inactive_color = 'text-blue-200';
+            break;
+            
+        default:
+            // Default navigation for public pages
+            $nav_items = [
+                'home' => ['url' => 'index.php', 'icon' => 'fas fa-home', 'text' => 'Home'],
+                'courses' => ['url' => 'courses.php', 'icon' => 'fas fa-book', 'text' => 'Browse Courses'],
+                'login' => ['url' => 'index.php', 'icon' => 'fas fa-sign-in-alt', 'text' => 'Login']
+            ];
+            $bg_color = 'bg-gray-600';
+            $hover_color = 'hover:text-white';
+            $active_color = 'text-white';
+            $inactive_color = 'text-gray-200';
             break;
     }
     

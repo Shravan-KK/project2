@@ -170,7 +170,7 @@ $courses = $stmt->get_result();
                                                 </span>
                                             </div>
                                         </div>
-                                        <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'], 0, 150)) . '...'; ?></p>
+                                        <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars(substr($course['description'] ?? '', 0, 150)) . '...'; ?></p>
                                         <div class="mt-2 flex items-center text-sm text-gray-500">
                                             <span><i class="fas fa-calendar mr-1"></i> Enrolled: <?php echo formatDate($course['enrollment_date']); ?></span>
                                             <span class="ml-4"><i class="fas fa-book mr-1"></i> Progress: <?php echo $course['completed_lessons']; ?>/<?php echo $course['total_lessons']; ?> lessons</span>
@@ -226,5 +226,6 @@ $courses = $stmt->get_result();
             </div>
         </div>
     </div>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

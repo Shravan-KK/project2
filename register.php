@@ -43,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($result->num_rows > 0) {
             $error = 'Email address already exists';
         } else {
-            // Hash password and insert user
-            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            // Hash password with MD5 and insert user
+            $hashed_password = md5($password);
             
             $sql = "INSERT INTO users (name, email, password, user_type, phone, address) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);

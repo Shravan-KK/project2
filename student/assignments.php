@@ -285,5 +285,6 @@ if ($assignment_id && $action == 'submit') {
             </div>
         <?php endif; ?>
     </div>
-</body>
-</html>
+
+
+<?php require_once '../includes/footer.php'; ?>

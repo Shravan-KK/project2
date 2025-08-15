@@ -169,5 +169,6 @@ $page_title = 'Teacher Dashboard';
             </div>
         </div>
     </div>
-</body>
-</html> 
+
+
+<?php require_once '../includes/footer.php'; ?>
