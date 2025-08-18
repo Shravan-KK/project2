@@ -9,40 +9,41 @@ requireTeacher();
 $teacher_id = $_SESSION['user_id'];
 $page_title = 'My Batches - Teacher';
 
-// Get batches assigned to this teacher
-$batches_sql = "SELECT b.*, 
-                COUNT(DISTINCT ce.student_id) as total_students,
-                COUNT(DISTINCT cs.id) as total_sessions,
-                COUNT(DISTINCT CASE WHEN cs.status = 'completed' THEN cs.id END) as completed_sessions,
-                AVG(e.progress) as avg_progress
+// Get batches assigned to this teacher (either as course teacher or batch instructor)
+$batches_sql = "SELECT DISTINCT b.*, 
+                COUNT(DISTINCT e.student_id) as total_students,
+                AVG(e.progress) as avg_progress,
+                CASE 
+                    WHEN bi.instructor_id IS NOT NULL THEN CONCAT('Instructor (', bi.role, ')')
+                    ELSE 'Course Teacher'
+                END as teacher_role
                 FROM batches b
-                JOIN batch_courses bc ON b.id = bc.batch_id
-                JOIN courses c ON bc.course_id = c.id
-                LEFT JOIN class_enrollments ce ON b.id = ce.class_id AND ce.status = 'active'
-                LEFT JOIN class_sessions cs ON b.id = cs.class_id
+                LEFT JOIN batch_instructors bi ON b.id = bi.batch_id AND bi.instructor_id = ? AND bi.status = 'active'
+                LEFT JOIN batch_courses bc ON b.id = bc.batch_id AND bc.status = 'active'
+                LEFT JOIN courses c ON bc.course_id = c.id AND c.teacher_id = ?
                 LEFT JOIN enrollments e ON e.batch_id = b.id AND e.status = 'active'
-                WHERE c.teacher_id = ?
-                GROUP BY b.id, b.name, b.description, b.start_date, b.end_date, b.max_students, b.status, b.created_at, b.updated_at
+                WHERE (bi.instructor_id = ? OR c.teacher_id = ?) AND b.status = 'active'
+                GROUP BY b.id, b.name, b.description, b.start_date, b.end_date, b.max_students, b.status, b.created_at, b.updated_at, bi.instructor_id, bi.role
                 ORDER BY b.start_date DESC";
 $batches_stmt = $conn->prepare($batches_sql);
-$batches_stmt->bind_param("i", $teacher_id);
+$batches_stmt->bind_param("iiii", $teacher_id, $teacher_id, $teacher_id, $teacher_id);
 $batches_stmt->execute();
 $batches = $batches_stmt->get_result();
 
 // Get batch statistics
 $stats_sql = "SELECT 
     COUNT(DISTINCT b.id) as total_batches,
-    COUNT(DISTINCT ce.student_id) as total_students,
+    COUNT(DISTINCT e.student_id) as total_students,
     AVG(e.progress) as avg_progress,
     COUNT(DISTINCT CASE WHEN b.status = 'active' THEN b.id END) as active_batches
     FROM batches b
-    JOIN batch_courses bc ON b.id = bc.batch_id
-    JOIN courses c ON bc.course_id = c.id
-    LEFT JOIN class_enrollments ce ON b.id = ce.class_id AND ce.status = 'active'
+    LEFT JOIN batch_instructors bi ON b.id = bi.batch_id AND bi.instructor_id = ? AND bi.status = 'active'
+    LEFT JOIN batch_courses bc ON b.id = bc.batch_id AND bc.status = 'active'
+    LEFT JOIN courses c ON bc.course_id = c.id AND c.teacher_id = ?
     LEFT JOIN enrollments e ON e.batch_id = b.id AND e.status = 'active'
-    WHERE c.teacher_id = ?";
+    WHERE (bi.instructor_id = ? OR c.teacher_id = ?) AND b.status = 'active'";
 $stats_stmt = $conn->prepare($stats_sql);
-$stats_stmt->bind_param("i", $teacher_id);
+$stats_stmt->bind_param("iiii", $teacher_id, $teacher_id, $teacher_id, $teacher_id);
 $stats_stmt->execute();
 $batch_stats = $stats_stmt->get_result()->fetch_assoc();
 ?>
@@ -153,20 +154,25 @@ $batch_stats = $stats_stmt->get_result()->fetch_assoc();
                                                 <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo $batch['status'] == 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'; ?>">
                                                     <?php echo ucfirst($batch['status']); ?>
                                                 </span>
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full <?php echo strpos($batch['teacher_role'], 'Instructor') !== false ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'; ?>">
+                                                    <?php echo htmlspecialchars($batch['teacher_role']); ?>
+                                                </span>
                                             </div>
                                         </div>
                                         <p class="text-sm text-gray-600 mt-1"><?php echo htmlspecialchars($batch['description'] ?? 'No description available'); ?></p>
                                         <div class="mt-2 flex items-center text-sm text-gray-500">
                                             <span><i class="fas fa-calendar mr-1"></i> <?php echo formatDate($batch['start_date']); ?> - <?php echo formatDate($batch['end_date']); ?></span>
                                             <span class="ml-4"><i class="fas fa-users mr-1"></i> <?php echo $batch['total_students']; ?> students</span>
-                                            <span class="ml-4"><i class="fas fa-play mr-1"></i> <?php echo $batch['completed_sessions']; ?>/<?php echo $batch['total_sessions']; ?> sessions</span>
+                                            <?php if (isset($batch['avg_progress']) && $batch['avg_progress'] > 0): ?>
+                                                <span class="ml-4"><i class="fas fa-chart-line mr-1"></i> <?php echo round($batch['avg_progress'], 1); ?>% avg progress</span>
+                                            <?php endif; ?>
                                         </div>
-                                        <?php if ($batch['total_sessions'] > 0): ?>
+                                        <?php if (isset($batch['avg_progress']) && $batch['avg_progress'] > 0): ?>
                                             <div class="mt-2">
                                                 <div class="w-full bg-gray-200 rounded-full h-2">
-                                                    <div class="bg-blue-600 h-2 rounded-full" style="width: <?php echo ($batch['completed_sessions'] / $batch['total_sessions']) * 100; ?>%"></div>
+                                                    <div class="bg-blue-600 h-2 rounded-full" style="width: <?php echo $batch['avg_progress']; ?>%"></div>
                                                 </div>
-                                                <p class="text-xs text-gray-500 mt-1"><?php echo round(($batch['completed_sessions'] / $batch['total_sessions']) * 100); ?>% sessions completed</p>
+                                                <p class="text-xs text-gray-500 mt-1"><?php echo round($batch['avg_progress']); ?>% average progress</p>
                                             </div>
                                         <?php endif; ?>
                                     </div>

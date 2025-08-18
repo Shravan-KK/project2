@@ -8,15 +8,45 @@ requireAdmin();
 
 $page_title = 'User Management - Admin';
 
-// Get all users with additional information
+// Get search parameters
+$search_name = isset($_GET['search_name']) ? trim($_GET['search_name']) : '';
+$search_type = isset($_GET['search_type']) ? $_GET['search_type'] : '';
+
+// Build the search query
 $sql = "SELECT u.*, 
         (SELECT COUNT(*) FROM enrollments WHERE student_id = u.id) as enrollment_count,
         (SELECT COUNT(*) FROM courses WHERE teacher_id = u.id) as course_count,
         (SELECT GROUP_CONCAT(DISTINCT b.name SEPARATOR ', ') FROM enrollments e 
          JOIN batches b ON e.batch_id = b.id WHERE e.student_id = u.id AND e.status = 'active') as batch_names
-        FROM users u 
-        ORDER BY u.user_type, u.created_at DESC";
-$users = $conn->query($sql);
+        FROM users u WHERE 1=1";
+
+$params = [];
+$types = "";
+
+// Add name search condition
+if (!empty($search_name)) {
+    $sql .= " AND u.name LIKE ?";
+    $params[] = "%" . $search_name . "%";
+    $types .= "s";
+}
+
+// Add user type search condition
+if (!empty($search_type)) {
+    $sql .= " AND u.user_type = ?";
+    $params[] = $search_type;
+    $types .= "s";
+}
+
+$sql .= " ORDER BY u.user_type, u.created_at DESC";
+
+if (!empty($params)) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $users = $stmt->get_result();
+} else {
+    $users = $conn->query($sql);
+}
 
 // Get all batches for assignment
 $batches_sql = "SELECT id, name, status FROM batches WHERE status = 'active' ORDER BY name";
@@ -90,11 +120,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_batch'])) {
         </div>
     <?php endif; ?>
 
+    <!-- Search Bar -->
+    <div class="bg-white shadow rounded-lg mb-6">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Search Users</h3>
+            <form method="GET" action="" class="flex flex-col sm:flex-row gap-4">
+                <div class="flex-1">
+                    <label for="search_name" class="block text-sm font-medium text-gray-700 mb-1">Search by Name</label>
+                    <input type="text" 
+                           id="search_name" 
+                           name="search_name" 
+                           value="<?php echo htmlspecialchars($search_name); ?>"
+                           placeholder="Enter user name..."
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="sm:w-48">
+                    <label for="search_type" class="block text-sm font-medium text-gray-700 mb-1">User Type</label>
+                    <select id="search_type" 
+                            name="search_type"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">All Types</option>
+                        <option value="student" <?php echo $search_type === 'student' ? 'selected' : ''; ?>>Student</option>
+                        <option value="teacher" <?php echo $search_type === 'teacher' ? 'selected' : ''; ?>>Teacher</option>
+                        <option value="admin" <?php echo $search_type === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                    </select>
+                </div>
+                <div class="flex items-end space-x-2">
+                    <button type="submit" 
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-search mr-2"></i>
+                        Search
+                    </button>
+                    <?php if (!empty($search_name) || !empty($search_type)): ?>
+                        <a href="users.php" 
+                           class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <i class="fas fa-times mr-2"></i>
+                            Clear
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Users List -->
     <div class="bg-white shadow overflow-hidden sm:rounded-md">
         <div class="px-4 py-5 sm:px-6">
             <h3 class="text-lg leading-6 font-medium text-gray-900">
-                All Users (<?php echo $users->num_rows; ?> total)
+                <?php if (!empty($search_name) || !empty($search_type)): ?>
+                    Search Results (<?php echo $users->num_rows; ?> found)
+                    <?php if (!empty($search_name)): ?>
+                        <span class="text-sm text-gray-600">- Name: "<?php echo htmlspecialchars($search_name); ?>"</span>
+                    <?php endif; ?>
+                    <?php if (!empty($search_type)): ?>
+                        <span class="text-sm text-gray-600">- Type: <?php echo ucfirst($search_type); ?></span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    All Users (<?php echo $users->num_rows; ?> total)
+                <?php endif; ?>
             </h3>
         </div>
         

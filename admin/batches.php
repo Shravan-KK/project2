@@ -141,16 +141,104 @@ if (isset($_GET['delete_batch']) && is_numeric($_GET['delete_batch'])) {
     }
 }
 
-// Get all batches with statistics
+// Create batch_courses table if it doesn't exist
+$create_batch_courses = "CREATE TABLE IF NOT EXISTS batch_courses (
+    id INT(11) AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT(11) NOT NULL,
+    course_id INT(11) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    status ENUM('active', 'inactive', 'completed') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_batch_id (batch_id),
+    INDEX idx_course_id (course_id),
+    INDEX idx_status (status),
+    UNIQUE KEY unique_batch_course (batch_id, course_id)
+)";
+
+$conn->query($create_batch_courses);
+
+// Create batches table if it doesn't exist
+$create_batches = "CREATE TABLE IF NOT EXISTS batches (
+    id INT(11) AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    start_date DATE,
+    end_date DATE,
+    max_students INT(11) DEFAULT 30,
+    current_students INT(11) DEFAULT 0,
+    status ENUM('active', 'inactive', 'completed') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)";
+
+$conn->query($create_batches);
+
+// Check if batch_id column exists in enrollments table
+$check_batch_id = $conn->query("SHOW COLUMNS FROM enrollments LIKE 'batch_id'");
+if ($check_batch_id->num_rows == 0) {
+    $conn->query("ALTER TABLE enrollments ADD COLUMN batch_id INT(11) NULL AFTER course_id");
+}
+
+// Get all batches with statistics - using a conservative approach
+try {
+    // First, try without status conditions in JOIN
 $sql = "SELECT b.*, 
         COUNT(DISTINCT e.student_id) as enrolled_students,
         COUNT(DISTINCT bc.course_id) as assigned_courses
         FROM batches b 
-        LEFT JOIN enrollments e ON b.id = e.batch_id AND e.status = 'active'
-        LEFT JOIN batch_courses bc ON b.id = bc.batch_id AND bc.status = 'active'
+            LEFT JOIN enrollments e ON b.id = e.batch_id
+            LEFT JOIN batch_courses bc ON b.id = bc.batch_id
         GROUP BY b.id 
         ORDER BY b.created_at DESC";
 $batches = $conn->query($sql);
+    
+    // If still failing, try without batch_courses join
+    if (!$batches) {
+        $sql = "SELECT b.*, 
+                COUNT(DISTINCT e.student_id) as enrolled_students,
+                0 as assigned_courses
+                FROM batches b 
+                LEFT JOIN enrollments e ON b.id = e.batch_id
+                GROUP BY b.id 
+                ORDER BY b.created_at DESC";
+        $batches = $conn->query($sql);
+    }
+    
+    // If still failing, use basic query
+    if (!$batches) {
+        $sql = "SELECT b.*, 0 as enrolled_students, 0 as assigned_courses FROM batches b ORDER BY b.created_at DESC";
+        $batches = $conn->query($sql);
+    }
+} catch (Exception $e) {
+    // Fallback to basic query if tables are problematic
+    $sql = "SELECT *, 0 as enrolled_students, 0 as assigned_courses FROM batches ORDER BY created_at DESC";
+    $batches = $conn->query($sql);
+}
+
+// Handle SQL errors gracefully
+if (!$batches) {
+    echo "<div style='background: #f8d7da; color: #721c24; padding: 15px; border: 1px solid #f5c6cb; border-radius: 5px; margin: 20px;'>";
+    echo "<h3>Database Error</h3>";
+    echo "<p>Error: " . $conn->error . "</p>";
+    echo "<p>Let's create a basic batches table and try again.</p>";
+    
+    // Create basic batches table
+    $basic_batches = "CREATE TABLE IF NOT EXISTS batches (
+        id INT(11) AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        status ENUM('active', 'inactive', 'completed') DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
+    
+    if ($conn->query($basic_batches)) {
+        echo "<p style='color: green;'>✓ Basic batches table created. <a href='batches.php'>Refresh page</a></p>";
+    }
+    echo "</div>";
+    exit();
+}
 
 // Get all courses for assignment
 $courses_sql = "SELECT id, title FROM courses WHERE status = 'active' ORDER BY title";

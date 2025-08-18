@@ -16,7 +16,7 @@ $teacher_id = $_SESSION['user_id'];
 $page_title = 'Batch Details - Teacher';
 
 // Verify teacher has access to this batch
-$batch_access_sql = "SELECT b.*, c.title as course_title FROM batches b 
+$batch_access_sql = "SELECT b.*, c.id as course_id, c.title as course_title FROM batches b 
                      JOIN batch_courses bc ON b.id = bc.batch_id 
                      JOIN courses c ON bc.course_id = c.id 
                      WHERE b.id = ? AND c.teacher_id = ?";
@@ -118,10 +118,16 @@ try {
                 <h1 class="text-3xl font-bold text-gray-900">Batch Details</h1>
                 <p class="mt-2 text-gray-600"><?php echo htmlspecialchars($batch['name']); ?> - <?php echo htmlspecialchars($batch['course_title']); ?></p>
             </div>
-            <a href="batches.php" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                <i class="fas fa-arrow-left mr-2"></i>
-                Back to Batches
-            </a>
+            <div class="flex items-center space-x-3">
+                <a href="course_content.php?course_id=<?php echo $batch['course_id']; ?>" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <i class="fas fa-cog mr-2"></i>
+                    Customize Course
+                </a>
+                <a href="batches.php" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to Batches
+                </a>
+            </div>
         </div>
     </div>
 

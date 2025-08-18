@@ -35,14 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $course_id = (int)$_POST['course_id'];
                 $title = trim($_POST['title']);
                 $description = trim($_POST['description']);
-                $teacher_id = (int)$_POST['teacher_id'];
                 $duration = trim($_POST['duration']);
                 $price = (float)$_POST['price'];
                 $status = $_POST['status'];
                 
-                $sql = "UPDATE courses SET title = ?, description = ?, teacher_id = ?, duration = ?, price = ?, status = ? WHERE id = ?";
+                // Do not update teacher_id - course creator cannot be changed
+                $sql = "UPDATE courses SET title = ?, description = ?, duration = ?, price = ?, status = ? WHERE id = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("ssisdsi", $title, $description, $teacher_id, $duration, $price, $status, $course_id);
+                $stmt->bind_param("sssdsi", $title, $description, $duration, $price, $status, $course_id);
                 
                 if ($stmt->execute()) {
                     $success_message = "Course updated successfully!";
@@ -250,7 +250,7 @@ $stats = $conn->query($stats_sql)->fetch_assoc();
                                     <?php endif; ?>
                                         </div>
                                         <div class="flex items-center space-x-2">
-                                    <a href="course_details.php?id=<?php echo $course['id']; ?>" class="text-blue-600 hover:text-blue-900">
+                                    <a href="course_view_student.php?id=<?php echo $course['id']; ?>" class="text-blue-600 hover:text-blue-900" title="View as Student">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     <a href="?edit=<?php echo $course['id']; ?>" class="text-indigo-600 hover:text-indigo-900">
@@ -304,17 +304,45 @@ $stats = $conn->query($stats_sql)->fetch_assoc();
                     <textarea name="description" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"><?php echo $edit_course ? htmlspecialchars($edit_course['description']) : ''; ?></textarea>
     </div>
 
+                <?php if ($edit_course): ?>
+                    <!-- Show teacher info as read-only when editing -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Course Creator</label>
+                        <div class="mt-1 p-3 bg-gray-100 border border-gray-300 rounded-md">
+                            <div class="flex items-center">
+                                <i class="fas fa-user text-gray-500 mr-2"></i>
+                                <span class="text-gray-900">
+                                    <?php 
+                                    // Get teacher name for display
+                                    $teacher_name = 'Unknown Teacher';
+                                    $teacher_email = '';
+                                    $teachers_copy = $conn->query("SELECT name, email FROM users WHERE id = " . $edit_course['teacher_id']);
+                                    if ($teacher_info = $teachers_copy->fetch_assoc()) {
+                                        $teacher_name = $teacher_info['name'];
+                                        $teacher_email = $teacher_info['email'];
+                                    }
+                                    echo htmlspecialchars($teacher_name);
+                                    ?>
+                                </span>
+                                <span class="ml-2 text-sm text-gray-500">(<?php echo htmlspecialchars($teacher_email); ?>)</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Course creator cannot be changed</p>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <!-- Allow teacher selection only when creating new course -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700">Teacher</label>
                     <select name="teacher_id" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                         <option value="">Select a teacher</option>
                         <?php while ($teacher = $teachers->fetch_assoc()): ?>
-                            <option value="<?php echo $teacher['id']; ?>" <?php echo ($edit_course && $edit_course['teacher_id'] == $teacher['id']) ? 'selected' : ''; ?>>
+                                <option value="<?php echo $teacher['id']; ?>">
                                 <?php echo htmlspecialchars($teacher['name']); ?> (<?php echo htmlspecialchars($teacher['email']); ?>)
                             </option>
                         <?php endwhile; ?>
                     </select>
                 </div>
+                <?php endif; ?>
                 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>

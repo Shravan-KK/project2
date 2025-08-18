@@ -3,3 +3,8 @@
 [14-Aug-2025 13:37:09 Asia/Kolkata] [Warning] Undefined array key "SERVER_NAME" in /Applications/MAMP/htdocs/project2/config/database.php on line 6
 [14-Aug-2025 13:37:09 Asia/Kolkata] [Deprecated] strpos(): Passing null to parameter #1 ($haystack) of type string is deprecated in /Applications/MAMP/htdocs/project2/config/database.php on line 6
 [14-Aug-2025 13:37:09 Asia/Kolkata] Uncaught Exception: Access denied for user 'shravan_dbuser'@'localhost' (using password: YES) in /Applications/MAMP/htdocs/project2/config/database.php on line 28
+[18-Aug-2025 17:06:23 Asia/Kolkata] [Warning] Undefined array key "SERVER_NAME" in /Applications/MAMP/htdocs/project2/config/database.php on line 6
+[18-Aug-2025 17:06:23 Asia/Kolkata] [Deprecated] strpos(): Passing null to parameter #1 ($haystack) of type string is deprecated in /Applications/MAMP/htdocs/project2/config/database.php on line 6
+[18-Aug-2025 17:06:23 Asia/Kolkata] [Warning] Undefined array key "SERVER_NAME" in /Applications/MAMP/htdocs/project2/config/database.php on line 6
+[18-Aug-2025 17:06:23 Asia/Kolkata] [Deprecated] strpos(): Passing null to parameter #1 ($haystack) of type string is deprecated in /Applications/MAMP/htdocs/project2/config/database.php on line 6
+[18-Aug-2025 17:06:23 Asia/Kolkata] Uncaught Exception: Access denied for user 'shravan_dbuser'@'localhost' (using password: YES) in /Applications/MAMP/htdocs/project2/config/database.php on line 43

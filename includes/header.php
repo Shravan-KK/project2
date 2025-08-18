@@ -48,6 +48,9 @@ if (strpos($script_name, 'admin/') !== false) {
     $user_type = 'teacher';
     if (strpos($script_name, 'dashboard.php') !== false) $current_page = 'dashboard';
     elseif (strpos($script_name, 'courses.php') !== false) $current_page = 'courses';
+    elseif (strpos($script_name, 'all_courses.php') !== false) $current_page = 'all_courses';
+    elseif (strpos($script_name, 'course_content_view.php') !== false) $current_page = 'all_courses';
+    elseif (strpos($script_name, 'batches.php') !== false) $current_page = 'batches';
     elseif (strpos($script_name, 'students.php') !== false) $current_page = 'students';
     elseif (strpos($script_name, 'assignments.php') !== false) $current_page = 'assignments';
     elseif (strpos($script_name, 'grades.php') !== false) $current_page = 'grades';

@@ -39,9 +39,48 @@ if ($course_id) {
     $course = $course_stmt->get_result()->fetch_assoc();
 }
 
-// Get lessons for the course
+// Get course sections and lessons
+$sections = null;
+if ($course_id) {
+    // Try to get sections first
+    try {
+        $sections_sql = "SELECT cs.*, 
+                         COUNT(l.id) as lesson_count,
+                         SUM(CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END) as completed_lessons
+                         FROM course_sections cs
+                         LEFT JOIN lessons l ON cs.id = l.section_id 
+                         LEFT JOIN student_progress sp ON l.id = sp.lesson_id AND sp.student_id = ?
+                         WHERE cs.course_id = ?
+                         GROUP BY cs.id
+                         ORDER BY cs.order_number ASC";
+        $sections_stmt = $conn->prepare($sections_sql);
+        $sections_stmt->bind_param("ii", $student_id, $course_id);
+        $sections_stmt->execute();
+        $sections = $sections_stmt->get_result();
+    } catch (Exception $e) {
+        // Fallback to lessons without sections
+        $sections = null;
+    }
+}
+
+// Get lessons for the course (fallback or for sections)
 $lessons = null;
 if ($course_id) {
+    try {
+        // Try to get lessons with sections
+        $lessons_sql = "SELECT l.*, cs.title as section_title, cs.id as section_id,
+                        CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END as is_completed
+                        FROM lessons l 
+                        LEFT JOIN course_sections cs ON l.section_id = cs.id
+                        LEFT JOIN student_progress sp ON l.id = sp.lesson_id AND sp.student_id = ?
+                        WHERE l.course_id = ? 
+                        ORDER BY cs.order_number ASC, l.order_number ASC";
+        $lessons_stmt = $conn->prepare($lessons_sql);
+        $lessons_stmt->bind_param("ii", $student_id, $course_id);
+        $lessons_stmt->execute();
+        $lessons = $lessons_stmt->get_result();
+    } catch (Exception $e) {
+        // Fallback to simple lessons query
     $lessons_sql = "SELECT l.*, 
                     CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END as is_completed
                     FROM lessons l 
@@ -52,20 +91,35 @@ if ($course_id) {
     $lessons_stmt->bind_param("ii", $student_id, $course_id);
     $lessons_stmt->execute();
     $lessons = $lessons_stmt->get_result();
+    }
 }
 
 // Get specific lesson
 $lesson = null;
 if ($lesson_id) {
-    $lesson_sql = "SELECT l.*, 
-                   CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END as is_completed
-                   FROM lessons l 
-                   LEFT JOIN student_progress sp ON l.id = sp.lesson_id AND sp.student_id = ?
-                   WHERE l.id = ? AND l.course_id = ?";
-    $lesson_stmt = $conn->prepare($lesson_sql);
-    $lesson_stmt->bind_param("iii", $student_id, $lesson_id, $course_id);
-    $lesson_stmt->execute();
-    $lesson = $lesson_stmt->get_result()->fetch_assoc();
+    try {
+        $lesson_sql = "SELECT l.*, cs.title as section_title, cs.id as section_id,
+                       CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END as is_completed
+                       FROM lessons l 
+                       LEFT JOIN course_sections cs ON l.section_id = cs.id
+                       LEFT JOIN student_progress sp ON l.id = sp.lesson_id AND sp.student_id = ?
+                       WHERE l.id = ? AND l.course_id = ?";
+        $lesson_stmt = $conn->prepare($lesson_sql);
+        $lesson_stmt->bind_param("iii", $student_id, $lesson_id, $course_id);
+        $lesson_stmt->execute();
+        $lesson = $lesson_stmt->get_result()->fetch_assoc();
+    } catch (Exception $e) {
+        // Fallback without sections
+        $lesson_sql = "SELECT l.*, 
+                       CASE WHEN sp.lesson_completed = 1 THEN 1 ELSE 0 END as is_completed
+                       FROM lessons l 
+                       LEFT JOIN student_progress sp ON l.id = sp.lesson_id AND sp.student_id = ?
+                       WHERE l.id = ? AND l.course_id = ?";
+        $lesson_stmt = $conn->prepare($lesson_sql);
+        $lesson_stmt->bind_param("iii", $student_id, $lesson_id, $course_id);
+        $lesson_stmt->execute();
+        $lesson = $lesson_stmt->get_result()->fetch_assoc();
+    }
 }
 
 // Mark lesson as completed
@@ -108,14 +162,125 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <!-- Lessons Sidebar -->
+                <!-- Course Sections & Lessons Sidebar -->
                 <div class="lg:col-span-1">
                     <div class="bg-white shadow rounded-lg">
                         <div class="px-4 py-3 border-b border-gray-200">
-                            <h3 class="text-lg font-medium text-gray-900">Lessons</h3>
+                            <h3 class="text-lg font-medium text-gray-900">Course Content</h3>
+                        </div>
+                        <div class="max-h-96 overflow-y-auto">
+                            <?php 
+                            // Check if we have sections data
+                            if ($sections && $sections->num_rows > 0): 
+                                // Group lessons by section
+                                $lessons_array = [];
+                                if ($lessons && $lessons->num_rows > 0) {
+                                    while ($lesson_item = $lessons->fetch_assoc()) {
+                                        $section_id = $lesson_item['section_id'] ?? 'no_section';
+                                        $lessons_array[$section_id][] = $lesson_item;
+                                    }
+                                }
+                                
+                                // Display sections with lessons
+                                while ($section = $sections->fetch_assoc()): 
+                            ?>
+                                <div class="border-b border-gray-100">
+                                    <!-- Section Header -->
+                                    <div class="px-4 py-3 bg-gray-50 cursor-pointer section-header" onclick="toggleSection('section_<?php echo $section['id']; ?>')">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center">
+                                                <i class="fas fa-chevron-down transition-transform duration-200 text-gray-500 section-arrow" id="arrow_<?php echo $section['id']; ?>"></i>
+                                                <h4 class="ml-2 font-medium text-gray-900"><?php echo htmlspecialchars($section['title']); ?></h4>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-xs text-gray-500">
+                                                    <?php echo ($section['completed_lessons'] ?? 0); ?>/<?php echo ($section['lesson_count'] ?? 0); ?>
+                                                </span>
+                                                <?php if (($section['completed_lessons'] ?? 0) == ($section['lesson_count'] ?? 0) && ($section['lesson_count'] ?? 0) > 0): ?>
+                                                    <i class="fas fa-check-circle text-green-600 text-sm"></i>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <?php if ($section['description']): ?>
+                                            <p class="text-xs text-gray-600 mt-1"><?php echo htmlspecialchars(substr($section['description'], 0, 100)) . '...'; ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <!-- Section Lessons -->
+                                    <div class="section-content" id="section_<?php echo $section['id']; ?>">
+                                        <?php if (isset($lessons_array[$section['id']]) && !empty($lessons_array[$section['id']])): ?>
+                                            <?php foreach ($lessons_array[$section['id']] as $lesson_item): ?>
+                                                <div class="px-6 py-2 hover:bg-gray-50 border-l-2 <?php echo $lesson_id == $lesson_item['id'] ? 'border-blue-500 bg-blue-50' : 'border-transparent'; ?>">
+                                                    <a href="?course_id=<?php echo $course_id; ?>&lesson_id=<?php echo $lesson_item['id']; ?>" 
+                                                       class="flex items-center justify-between text-sm">
+                                                        <div class="flex items-center">
+                                                            <div class="flex-shrink-0">
+                                                                <?php if ($lesson_item['is_completed']): ?>
+                                                                    <i class="fas fa-check-circle text-green-600"></i>
+                                                                <?php else: ?>
+                                                                    <i class="fas fa-play-circle text-gray-400"></i>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                            <span class="ml-2 <?php echo $lesson_id == $lesson_item['id'] ? 'font-medium text-blue-600' : 'text-gray-700'; ?>">
+                                                                <?php echo htmlspecialchars($lesson_item['title']); ?>
+                                                            </span>
+                                                        </div>
+                                                        <span class="text-xs text-gray-500">
+                                                            <?php echo $lesson_item['duration'] ? formatDuration($lesson_item['duration']) : ''; ?>
+                                                        </span>
+                                                    </a>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <div class="px-6 py-2 text-xs text-gray-500">
+                                                No lessons in this section yet.
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endwhile; ?>
+                            
+                            <?php 
+                            // Show lessons without sections if any
+                            if (isset($lessons_array['no_section']) && !empty($lessons_array['no_section'])): 
+                            ?>
+                                <div class="border-b border-gray-100">
+                                    <div class="px-4 py-2 bg-gray-50">
+                                        <h4 class="font-medium text-gray-900">Other Lessons</h4>
+                                    </div>
+                                    <?php foreach ($lessons_array['no_section'] as $lesson_item): ?>
+                                        <div class="px-4 py-2 hover:bg-gray-50">
+                                            <a href="?course_id=<?php echo $course_id; ?>&lesson_id=<?php echo $lesson_item['id']; ?>" 
+                                               class="flex items-center justify-between text-sm">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0">
+                                                        <?php if ($lesson_item['is_completed']): ?>
+                                                            <i class="fas fa-check-circle text-green-600"></i>
+                                                        <?php else: ?>
+                                                            <i class="fas fa-play-circle text-gray-400"></i>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <span class="ml-2 <?php echo $lesson_id == $lesson_item['id'] ? 'font-medium text-blue-600' : 'text-gray-700'; ?>">
+                                                        <?php echo htmlspecialchars($lesson_item['title']); ?>
+                                                    </span>
+                                                </div>
+                                                <span class="text-xs text-gray-500">
+                                                    <?php echo $lesson_item['duration'] ? formatDuration($lesson_item['duration']) : ''; ?>
+                                                </span>
+                                            </a>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php else: 
+                                // Fallback: Display lessons without sections
+                                if ($lessons && $lessons->num_rows > 0): 
+                            ?>
+                                <div class="px-4 py-2 bg-gray-50">
+                                    <h4 class="font-medium text-gray-900">Lessons</h4>
                         </div>
                         <div class="divide-y divide-gray-200">
-                            <?php if ($lessons && $lessons->num_rows > 0): ?>
                                 <?php while ($lesson_item = $lessons->fetch_assoc()): ?>
                                     <div class="px-4 py-3 hover:bg-gray-50">
                                         <a href="?course_id=<?php echo $course_id; ?>&lesson_id=<?php echo $lesson_item['id']; ?>" 
@@ -125,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
                                                     <?php if ($lesson_item['is_completed']): ?>
                                                         <i class="fas fa-check-circle text-green-600"></i>
                                                     <?php else: ?>
-                                                        <i class="fas fa-circle text-gray-400"></i>
+                                                            <i class="fas fa-play-circle text-gray-400"></i>
                                                     <?php endif; ?>
                                                 </div>
                                                 <span class="ml-2 <?php echo $lesson_id == $lesson_item['id'] ? 'font-medium text-blue-600' : 'text-gray-700'; ?>">
@@ -138,10 +303,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
                                         </a>
                                     </div>
                                 <?php endwhile; ?>
+                                </div>
                             <?php else: ?>
                                 <div class="px-4 py-3 text-sm text-gray-500">
-                                    No lessons available yet.
+                                    No content available yet.
                                 </div>
+                            <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -154,6 +321,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
                             <div class="px-6 py-4 border-b border-gray-200">
                                 <div class="flex items-center justify-between">
                                     <div>
+                                        <?php if (isset($lesson['section_title']) && $lesson['section_title']): ?>
+                                            <p class="text-sm text-blue-600 font-medium mb-1">
+                                                <i class="fas fa-folder mr-1"></i><?php echo htmlspecialchars($lesson['section_title']); ?>
+                                            </p>
+                                        <?php endif; ?>
                                         <h2 class="text-xl font-bold text-gray-900"><?php echo htmlspecialchars($lesson['title']); ?></h2>
                                         <p class="text-sm text-gray-600 mt-1">
                                             Lesson <?php echo $lesson['order_number']; ?> • 
@@ -335,7 +507,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['mark_completed']) && $
             overflow-x: auto;
             margin: 1em 0;
         }
+        .section-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .section-content.active {
+            max-height: 1000px;
+        }
+        .section-arrow.rotated {
+            transform: rotate(-90deg);
+        }
     </style>
+
+    <script>
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const arrow = document.getElementById('arrow_' + sectionId.replace('section_', ''));
+            
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                arrow.classList.add('rotated');
+            } else {
+                content.classList.add('active');
+                arrow.classList.remove('rotated');
+            }
+        }
+
+        // Initialize sections to be open by default
+        document.addEventListener('DOMContentLoaded', function() {
+            const sections = document.querySelectorAll('.section-content');
+            sections.forEach(section => {
+                section.classList.add('active');
+            });
+        });
+    </script>
 
 
 <?php require_once '../includes/footer.php'; ?>

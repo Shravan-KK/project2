@@ -26,6 +26,7 @@ function getNavigation($user_type, $current_page = '') {
             $nav_items = [
                 'dashboard' => ['url' => 'dashboard.php', 'icon' => 'fas fa-tachometer-alt', 'text' => 'Dashboard'],
                 'courses' => ['url' => 'courses.php', 'icon' => 'fas fa-book', 'text' => 'My Courses'],
+                'all_courses' => ['url' => 'all_courses.php', 'icon' => 'fas fa-search', 'text' => 'All Courses'],
                 'batches' => ['url' => 'batches.php', 'icon' => 'fas fa-layer-group', 'text' => 'My Batches'],
                 'students' => ['url' => 'students.php', 'icon' => 'fas fa-user-graduate', 'text' => 'Students'],
                 'assignments' => ['url' => 'assignments.php', 'icon' => 'fas fa-file-alt', 'text' => 'Assignments'],

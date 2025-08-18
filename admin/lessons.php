@@ -7,10 +7,28 @@ require_once '../includes/header.php';
 requireAdmin();
 
 $course_id = isset($_GET['course_id']) ? (int)$_GET['course_id'] : 0;
+$section_id = isset($_GET['section_id']) ? (int)$_GET['section_id'] : 0;
 $action = $_GET['action'] ?? 'list';
 $lesson_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $error = '';
 $success = '';
+
+// Get section information if section_id is provided
+$section = null;
+if ($section_id) {
+    $section_sql = "SELECT cs.*, c.id as course_id, c.title as course_title 
+                    FROM course_sections cs 
+                    JOIN courses c ON cs.course_id = c.id 
+                    WHERE cs.id = ?";
+    $section_stmt = $conn->prepare($section_sql);
+    $section_stmt->bind_param("i", $section_id);
+    $section_stmt->execute();
+    $section = $section_stmt->get_result()->fetch_assoc();
+    
+    if ($section) {
+        $course_id = $section['course_id'];
+    }
+}
 
 // Get course information if course_id is provided
 $course = null;
@@ -105,12 +123,20 @@ if ($action == 'edit' && $lesson_id && $course_id) {
     }
 }
 
-// Get all lessons for the course
+// Get all lessons for the course or section
 $lessons = null;
 if ($course_id) {
-    $sql = "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_number ASC";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $course_id);
+    if ($section_id) {
+        // Filter by section
+        $sql = "SELECT * FROM lessons WHERE course_id = ? AND section_id = ? ORDER BY order_number ASC";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ii", $course_id, $section_id);
+    } else {
+        // All lessons for course
+        $sql = "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_number ASC";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $course_id);
+    }
     $stmt->execute();
     $lessons = $stmt->get_result();
 }
@@ -137,23 +163,34 @@ $page_title = 'Lesson Management - Admin';
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900">
-                        <?php if ($course): ?>
+                        <?php if ($section): ?>
+                            Section Lessons: <?php echo htmlspecialchars($section['title']); ?>
+                        <?php elseif ($course): ?>
                             Lessons for: <?php echo htmlspecialchars($course['title']); ?>
                         <?php else: ?>
                             Lesson Management
                         <?php endif; ?>
                     </h1>
-                    <?php if ($course): ?>
+                    <?php if ($section): ?>
+                        <p class="mt-2 text-gray-600">Manage lessons for "<?php echo htmlspecialchars($section['title']); ?>" section in <?php echo htmlspecialchars($section['course_title']); ?></p>
+                    <?php elseif ($course): ?>
                         <p class="mt-2 text-gray-600">Manage lessons for this course</p>
                     <?php endif; ?>
                 </div>
                 <div class="flex space-x-3">
-                    <a href="courses.php" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        <i class="fas fa-arrow-left mr-2"></i>
-                        Back to Courses
-                    </a>
+                    <?php if ($section): ?>
+                        <a href="section_view.php?id=<?php echo $section_id; ?>" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Section
+                        </a>
+                    <?php else: ?>
+                        <a href="courses.php" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            Back to Courses
+                        </a>
+                    <?php endif; ?>
                     <?php if ($course): ?>
-                        <a href="?action=add&course_id=<?php echo $course_id; ?>" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        <a href="?action=add&course_id=<?php echo $course_id; ?><?php echo $section_id ? '&section_id=' . $section_id : ''; ?>" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                             <i class="fas fa-plus mr-2"></i>
                             Add Lesson
                         </a>
@@ -456,6 +493,11 @@ $page_title = 'Lesson Management - Admin';
 
 
 <?php require_once '../includes/footer.php'; ?>
+
+
+
+
+
 
 
 

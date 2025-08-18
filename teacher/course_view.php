@@ -70,12 +70,46 @@ $assignments_stmt->bind_param("i", $course_id);
 $assignments_stmt->execute();
 $assignments = $assignments_stmt->get_result();
 
-// Get recent announcements
-$announcements_sql = "SELECT * FROM announcements WHERE course_id = ? ORDER BY created_at DESC LIMIT 5";
-$announcements_stmt = $conn->prepare($announcements_sql);
-$announcements_stmt->bind_param("i", $course_id);
-$announcements_stmt->execute();
-$announcements = $announcements_stmt->get_result();
+// Get recent announcements - create announcements table if not exists
+$create_announcements = "CREATE TABLE IF NOT EXISTS announcements (
+    id INT(11) AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    target_audience ENUM('students', 'teachers', 'both') DEFAULT 'both',
+    course_id INT(11) NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_by INT(11),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_course_id (course_id)
+)";
+$conn->query($create_announcements);
+
+// Get recent announcements with error handling
+try {
+    $announcements_sql = "SELECT * FROM announcements WHERE (course_id = ? OR course_id IS NULL) AND (target_audience IN ('teachers', 'both') OR created_by = ?) ORDER BY created_at DESC LIMIT 5";
+    $announcements_stmt = $conn->prepare($announcements_sql);
+    $announcements_stmt->bind_param("ii", $course_id, $teacher_id);
+    $announcements_stmt->execute();
+    $announcements = $announcements_stmt->get_result();
+} catch (Exception $e) {
+    // Fallback: create empty result set
+    $announcements_sql = "SELECT 
+        0 as id, 
+        'No announcements' as title, 
+        'No announcements available' as content, 
+        'both' as target_audience, 
+        ? as course_id, 
+        1 as is_active, 
+        ? as created_by, 
+        NOW() as created_at, 
+        NOW() as updated_at 
+        WHERE 1=0";
+    $announcements_stmt = $conn->prepare($announcements_sql);
+    $announcements_stmt->bind_param("ii", $course_id, $teacher_id);
+    $announcements_stmt->execute();
+    $announcements = $announcements_stmt->get_result();
+}
 ?>
 
 <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

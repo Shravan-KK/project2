@@ -197,11 +197,14 @@ $all_sections = $all_sections_stmt->get_result();
                                     </div>
                                 </div>
                                 <div class="flex items-center space-x-2">
-                                    <a href="section_lessons.php?section_id=<?php echo $section['id']; ?>" class="text-blue-600 hover:text-blue-900" title="View Lessons">
+                                    <a href="section_view.php?id=<?php echo $section['id']; ?>" class="text-blue-600 hover:text-blue-900" title="View Section">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="edit_section.php?id=<?php echo $section['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Section">
+                                    <a href="section_edit.php?id=<?php echo $section['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Section">
                                         <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="lessons.php?section_id=<?php echo $section['id']; ?>&course_id=<?php echo $course_id; ?>" class="text-green-600 hover:text-green-900" title="Manage Lessons">
+                                        <i class="fas fa-cogs"></i>
                                     </a>
                                 </div>
                             </div>

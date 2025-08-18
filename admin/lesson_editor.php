@@ -497,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Rich text editor initialization (using a simple approach - you can integrate CKEditor or TinyMCE here)
+// Rich text editor initialization (using a simple approach - you can integrate Quill or CKEditor here)
 document.addEventListener('DOMContentLoaded', function() {
     const editor = document.getElementById('richTextEditor');
     if (editor) {

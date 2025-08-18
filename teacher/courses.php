@@ -18,7 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $description = sanitizeInput($_POST['description']);
         $category = sanitizeInput($_POST['category']);
         $price = (float)$_POST['price'];
-        $intro_video_url = sanitizeInput($_POST['intro_video_url']);
         $thumbnail_url = sanitizeInput($_POST['thumbnail_url']);
         $max_students = (int)$_POST['max_students'];
         $visibility = sanitizeInput($_POST['visibility']);
@@ -26,13 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $activation_date = !empty($_POST['activation_date']) ? $_POST['activation_date'] : null;
         
         if (isset($_POST['create_course'])) {
-            $sql = "INSERT INTO courses (title, description, category, price, teacher_id, intro_video_url, thumbnail_url, max_students, visibility, password, activation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO courses (title, description, category, price, teacher_id, thumbnail_url, max_students, visibility, password, activation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("sssdsssssss", $title, $description, $category, $price, $teacher_id, $intro_video_url, $thumbnail_url, $max_students, $visibility, $password, $activation_date);
+            $stmt->bind_param("sssdssisss", $title, $description, $category, $price, $teacher_id, $thumbnail_url, $max_students, $visibility, $password, $activation_date);
         } else {
-            $sql = "UPDATE courses SET title = ?, description = ?, category = ?, price = ?, intro_video_url = ?, thumbnail_url = ?, max_students = ?, visibility = ?, password = ?, activation_date = ? WHERE id = ? AND teacher_id = ?";
+            $sql = "UPDATE courses SET title = ?, description = ?, category = ?, price = ?, thumbnail_url = ?, max_students = ?, visibility = ?, password = ?, activation_date = ? WHERE id = ? AND teacher_id = ?";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("sssdssssssii", $title, $description, $category, $price, $intro_video_url, $thumbnail_url, $max_students, $visibility, $password, $activation_date, $course_id, $teacher_id);
+            $stmt->bind_param("sssdsisssii", $title, $description, $category, $price, $thumbnail_url, $max_students, $visibility, $password, $activation_date, $course_id, $teacher_id);
         }
         
         if ($stmt->execute()) {
@@ -176,13 +175,7 @@ $courses = $stmt->get_result();
                         </div>
                     </div>
 
-                    <div>
-                        <label for="intro_video_url" class="block text-sm font-medium text-gray-700">Intro Video URL</label>
-                        <input type="url" id="intro_video_url" name="intro_video_url"
-                               value="<?php echo htmlspecialchars($course['intro_video_url'] ?? ''); ?>"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                               placeholder="https://www.youtube.com/watch?v=...">
-                    </div>
+
 
                     <div>
                         <label for="thumbnail_url" class="block text-sm font-medium text-gray-700">Thumbnail URL</label>
@@ -252,6 +245,10 @@ $courses = $stmt->get_result();
                                         </div>
                                     </div>
                                     <div class="flex items-center space-x-2">
+                                        <a href="course_sections.php?course_id=<?php echo $course_item['id']; ?>" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                                            <i class="fas fa-layer-group mr-2"></i>
+                                            Sections
+                                        </a>
                                         <a href="course_view.php?id=<?php echo $course_item['id']; ?>" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                                             <i class="fas fa-eye mr-2"></i>
                                             View
